@@ -21,6 +21,7 @@
 """
 
 import argparse, os, shutil, subprocess
+from collections import defaultdict
 
 # Clean out a directory.
 def cleandir(path):
@@ -98,7 +99,7 @@ def makeimport(exp):
 
 # Export a repository.
 def exportrepo(repo_root):
-    cmd = ['git', '-C', repo_root, 'fast-export', '--all']
+    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=..\\export-'+repo_root+'.txt']
     return parseexport(subprocess.check_output(cmd))
 
 # Import to a new repository.
@@ -111,7 +112,7 @@ def importtorepo(repo_root, commands, branch):
     subprocess.check_call(cmd)
 
     # Import the fast-import string into the repo.
-    p = subprocess.Popen(['git', '-C', repo_root, 'fast-import'], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['git', '-C', repo_root, 'fast-import', '--export-marks=..\\import-marks.txt'], stdin=subprocess.PIPE)
     p.communicate(input=import_str)
 
     # Checkout the tip of the main branch.
@@ -340,7 +341,16 @@ def remapmark(cmd, mark_map):
 # Merge two repositories.
 def mergerpos(main_commands, secondary_commands, main_spec, secondary_spec):
     # Renumber the marks in the secondary command set.
-    renumbermarks(secondary_commands, getmaxmark(main_commands))
+    mark_offset = getmaxmark(main_commands)
+    f = open('mark-offset-'+secondary_spec['name']+'.txt', 'w')
+    f.write(str(mark_offset))
+    f.close()
+
+    f = open('mark-offset-'+main_spec['name']+'.txt', 'w')
+    f.write(str(0))
+    f.close()
+
+    renumbermarks(secondary_commands, mark_offset)
 
     # Get a log of the main branch in the main command set.
     main_log = getlog(main_commands, main_spec['branch'], 0)
@@ -433,6 +443,77 @@ def mergerpos(main_commands, secondary_commands, main_spec, secondary_spec):
 
     return commands
 
+def copy_notes(repo_spec, import_marks, output_repo):
+    # read main marks
+    print('\n\t' + repo_spec['name'] + '...')
+    marks = read_marks('export-' + repo_spec['name'] + '.txt')
+    mark_offset = int(read_mark_offset('mark-offset-' + repo_spec['name'] + '.txt'))
+
+    os.chdir(repo_spec['name'])
+    # <notes object> 'SP' <annotated object>
+    notes = subprocess.check_output(['git', 'notes', 'list']).split('\n')
+    mark_notes = defaultdict()
+    for k in xrange(0, len(notes) - 1):
+        notes_ish = parse_notes_object(notes[k])
+        commit_ish = parse_annotated_object(notes[k])
+
+        note = subprocess.check_output(['git', 'cat-file', '-p', notes_ish])
+
+        if commit_ish not in marks.keys():
+            print('No mark found for commit ' + commit_ish + ' in repo ' + repo_spec['name'])
+        mark = marks[commit_ish]
+
+        # Increase secondary mark with offset
+        mark_nbr = int(mark[1:])
+        mark_nbr += mark_offset
+
+        mark_notes[':' + str(mark_nbr)] = note
+    os.chdir('..')
+
+    os.chdir(output_repo)
+    for k, v in mark_notes.iteritems():
+        import_commit_ish = parse_import_commit_ish(import_marks, k)
+        subprocess.check_output(['git', 'notes', 'add', '-m', v, import_commit_ish])
+    os.chdir('..')
+
+
+def parse_import_commit_ish(import_marks, mark):
+    return import_marks[mark];
+
+
+def parse_notes_object(list_note):
+    space_pos = list_note.find(' ')
+    return list_note[:space_pos]
+
+def parse_annotated_object(list_note):
+    space_pos = list_note.find(' ')
+    return list_note[space_pos + 1:]
+
+def read_marks(file_path):
+    f = open(file_path, 'r')
+    lines = f.readlines()
+    f.close()
+    marks = defaultdict()
+    for k in xrange(0, len(lines)):
+        mark = parse_mark(lines[k])
+        cish = parse_commit_hash(lines[k])
+        marks[cish] = mark
+    return marks
+
+def parse_mark(mark_line):
+    space_pos = mark_line.find(' ')
+    return mark_line[:space_pos]
+
+def parse_commit_hash(mark_line):
+    space_pos = mark_line.find(' ')
+    return mark_line[space_pos + 1:len(mark_line) - 1]
+
+def read_mark_offset(file_path):
+    f = open(file_path)
+    mark_offset = f.read()
+    f.close()
+    return mark_offset
+
 # Handle the program arguments.
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter,
@@ -491,3 +572,13 @@ else:
 print '\nImporting result to ' + os.path.abspath(out_root) + '...'
 importtorepo(out_root, main_commands, main_spec['branch'])
 
+print '\nMigrating notes...'
+import_marks = read_marks('import-marks.txt')
+swapped_import_marks = defaultdict()
+for k, v in import_marks.iteritems():
+    swapped_import_marks[v] = k
+
+copy_notes(main_spec, swapped_import_marks, out_root)
+for secondary in args.secondary:
+    secondary_spec = getrepospec(secondary)
+    copy_notes(secondary_spec, swapped_import_marks, out_root)
