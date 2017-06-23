@@ -98,8 +98,8 @@ def makeimport(exp):
     return '\n'.join(exp) + '\n'
 
 # Export a repository.
-def exportrepo(repo_root):
-    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=../export-'+repo_root+'.txt']
+def exportrepo(repo_root, name):
+    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=../export-'+name+'.txt']
     return parseexport(subprocess.check_output(cmd))
 
 # Import to a new repository.
@@ -541,7 +541,7 @@ already_have_submodules = False
 # Export the main repository.
 main_spec = getrepospec(args.main)
 print 'Exporting the main repository (' + main_spec['name'] + ')...'
-main_commands = exportrepo(main_spec['path'])
+main_commands = exportrepo(main_spec['path'], main_spec['name'])
 if move_to_subdirs:
     found_submodules = movetosubdir(main_commands, main_spec['name'])
     if found_submodules:
@@ -553,7 +553,7 @@ renamerefs(main_commands)
 for secondary in args.secondary:
     secondary_spec = getrepospec(secondary)
     print '\nExporting ' + secondary_spec['name'] + '...'
-    secondary_commands = exportrepo(secondary_spec['path'])
+    secondary_commands = exportrepo(secondary_spec['path'], secondary_spec['name'])
     if move_to_subdirs:
         found_submodules = movetosubdir(secondary_commands, secondary_spec['name'])
         if found_submodules:
