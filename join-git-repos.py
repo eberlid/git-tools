@@ -449,15 +449,15 @@ def copy_notes(repo_spec, import_marks, output_repo, data_root):
     marks = read_marks(data_root + '/export-' + repo_spec['name'] + '.txt')
     mark_offset = int(read_mark_offset(data_root + '/mark-offset-' + repo_spec['name'] + '.txt'))
 
-    os.chdir(repo_spec['path'])
     # <notes object> 'SP' <annotated object>
-    notes = subprocess.check_output(['git', 'notes', 'list']).split('\n')
+    notes = subprocess.check_output(['git', 'notes', 'list'], cwd=repo_spec['path']).split('\n')
     mark_notes = defaultdict()
+    print('\n\tRemapping commit marks with offset ' + str(mark_offset) + '...')
     for k in xrange(0, len(notes) - 1):
         notes_ish = parse_notes_object(notes[k])
         commit_ish = parse_annotated_object(notes[k])
 
-        note = subprocess.check_output(['git', 'cat-file', '-p', notes_ish])
+        note = subprocess.check_output(['git', 'cat-file', '-p', notes_ish], cwd=repo_spec['path'])
 
         if commit_ish not in marks.keys():
             print('No mark found for commit ' + commit_ish + ' in repo ' + repo_spec['name'])
@@ -469,10 +469,10 @@ def copy_notes(repo_spec, import_marks, output_repo, data_root):
 
         mark_notes[':' + str(mark_nbr)] = note
 
-    os.chdir(output_repo)
-    for k, v in mark_notes.iteritems():
-        import_commit_ish = parse_import_commit_ish(import_marks, k)
-        subprocess.check_output(['git', 'notes', 'add', '-m', v, import_commit_ish])
+    print('\n\tImporting notes of ' + repo_spec['name'] + ' into ' + output_repo + '...')
+    for k2, v2 in mark_notes.iteritems():
+        import_commit_ish = parse_import_commit_ish(import_marks, k2)
+        subprocess.check_output(['git', 'notes', 'add', '-m', v2, import_commit_ish], cwd=output_repo)
 
 def parse_import_commit_ish(import_marks, mark):
     return import_marks[mark];
