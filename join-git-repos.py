@@ -99,7 +99,7 @@ def makeimport(exp):
 
 # Export a repository.
 def exportrepo(repo_root):
-    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=..\\export-'+repo_root+'.txt']
+    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=../export-'+repo_root+'.txt']
     return parseexport(subprocess.check_output(cmd))
 
 # Import to a new repository.
@@ -112,7 +112,7 @@ def importtorepo(repo_root, commands, branch):
     subprocess.check_call(cmd)
 
     # Import the fast-import string into the repo.
-    p = subprocess.Popen(['git', '-C', repo_root, 'fast-import', '--export-marks=..\\import-marks.txt'], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['git', '-C', repo_root, 'fast-import', '--export-marks=../import-marks.txt'], stdin=subprocess.PIPE)
     p.communicate(input=import_str)
 
     # Checkout the tip of the main branch.
