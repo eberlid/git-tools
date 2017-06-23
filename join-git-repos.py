@@ -339,14 +339,14 @@ def remapmark(cmd, mark_map):
     return cmd
 
 # Merge two repositories.
-def mergerpos(main_commands, secondary_commands, main_spec, secondary_spec):
+def mergerpos(main_commands, secondary_commands, main_spec, secondary_spec, data_root):
     # Renumber the marks in the secondary command set.
     mark_offset = getmaxmark(main_commands)
-    f = open('mark-offset-'+secondary_spec['name']+'.txt', 'w')
+    f = open(data_root + '/mark-offset-'+secondary_spec['name']+'.txt', 'w')
     f.write(str(mark_offset))
     f.close()
 
-    f = open('mark-offset-'+main_spec['name']+'.txt', 'w')
+    f = open(data_root + '/mark-offset-'+main_spec['name']+'.txt', 'w')
     f.write(str(0))
     f.close()
 
@@ -563,7 +563,7 @@ for secondary in args.secondary:
             already_have_submodules = True
 
     print '\nMerging repositories...'
-    main_commands = mergerpos(main_commands, secondary_commands, main_spec, secondary_spec)
+    main_commands = mergerpos(main_commands, secondary_commands, main_spec, secondary_spec, data_root)
 
 # Create the new repository and import the stiched histories.
 out_root = args.output
