@@ -98,12 +98,12 @@ def makeimport(exp):
     return '\n'.join(exp) + '\n'
 
 # Export a repository.
-def exportrepo(repo_root, name):
-    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=../export-'+name+'.txt']
+def exportrepo(repo_root, data_root, name):
+    cmd = ['git', '-C', repo_root, 'fast-export', '--all', '--export-marks=' + data_root + '/export-'+name+'.txt']
     return parseexport(subprocess.check_output(cmd))
 
 # Import to a new repository.
-def importtorepo(repo_root, commands, branch):
+def importtorepo(repo_root, data_root, commands, branch):
     # Generate a string from the export description.
     import_str = makeimport(commands)
 
@@ -112,7 +112,7 @@ def importtorepo(repo_root, commands, branch):
     subprocess.check_call(cmd)
 
     # Import the fast-import string into the repo.
-    p = subprocess.Popen(['git', '-C', repo_root, 'fast-import', '--export-marks=../import-marks.txt'], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['git', '-C', repo_root, 'fast-import', '--export-marks=' + data_root + '/import-marks.txt'], stdin=subprocess.PIPE)
     p.communicate(input=import_str)
 
     # Checkout the tip of the main branch.
@@ -443,13 +443,13 @@ def mergerpos(main_commands, secondary_commands, main_spec, secondary_spec):
 
     return commands
 
-def copy_notes(repo_spec, import_marks, output_repo):
+def copy_notes(repo_spec, import_marks, output_repo, data_root):
     # read main marks
     print('\n\t' + repo_spec['name'] + '...')
-    marks = read_marks('export-' + repo_spec['name'] + '.txt')
-    mark_offset = int(read_mark_offset('mark-offset-' + repo_spec['name'] + '.txt'))
+    marks = read_marks(data_root + '/export-' + repo_spec['name'] + '.txt')
+    mark_offset = int(read_mark_offset(data_root + '/mark-offset-' + repo_spec['name'] + '.txt'))
 
-    os.chdir(repo_spec['name'])
+    os.chdir(repo_spec['path'])
     # <notes object> 'SP' <annotated object>
     notes = subprocess.check_output(['git', 'notes', 'list']).split('\n')
     mark_notes = defaultdict()
@@ -468,14 +468,11 @@ def copy_notes(repo_spec, import_marks, output_repo):
         mark_nbr += mark_offset
 
         mark_notes[':' + str(mark_nbr)] = note
-    os.chdir('..')
 
     os.chdir(output_repo)
     for k, v in mark_notes.iteritems():
         import_commit_ish = parse_import_commit_ish(import_marks, k)
         subprocess.check_output(['git', 'notes', 'add', '-m', v, import_commit_ish])
-    os.chdir('..')
-
 
 def parse_import_commit_ish(import_marks, mark):
     return import_marks[mark];
@@ -540,8 +537,11 @@ already_have_submodules = False
 
 # Export the main repository.
 main_spec = getrepospec(args.main)
+
+data_root = os.getcwd()
+
 print 'Exporting the main repository (' + main_spec['name'] + ')...'
-main_commands = exportrepo(main_spec['path'], main_spec['name'])
+main_commands = exportrepo(main_spec['path'], data_root, main_spec['name'])
 if move_to_subdirs:
     found_submodules = movetosubdir(main_commands, main_spec['name'])
     if found_submodules:
@@ -553,7 +553,7 @@ renamerefs(main_commands)
 for secondary in args.secondary:
     secondary_spec = getrepospec(secondary)
     print '\nExporting ' + secondary_spec['name'] + '...'
-    secondary_commands = exportrepo(secondary_spec['path'], secondary_spec['name'])
+    secondary_commands = exportrepo(secondary_spec['path'], data_root, secondary_spec['name'])
     if move_to_subdirs:
         found_submodules = movetosubdir(secondary_commands, secondary_spec['name'])
         if found_submodules:
@@ -570,15 +570,15 @@ if os.path.isdir(out_root):
 else:
     os.makedirs(out_root)
 print '\nImporting result to ' + os.path.abspath(out_root) + '...'
-importtorepo(out_root, main_commands, main_spec['branch'])
+importtorepo(out_root, data_root, main_commands, main_spec['branch'])
 
 print '\nMigrating notes...'
-import_marks = read_marks('import-marks.txt')
+import_marks = read_marks(data_root + '/import-marks.txt')
 swapped_import_marks = defaultdict()
 for k, v in import_marks.iteritems():
     swapped_import_marks[v] = k
 
-copy_notes(main_spec, swapped_import_marks, out_root)
+copy_notes(main_spec, swapped_import_marks, out_root, data_root)
 for secondary in args.secondary:
     secondary_spec = getrepospec(secondary)
-    copy_notes(secondary_spec, swapped_import_marks, out_root)
+    copy_notes(secondary_spec, swapped_import_marks, out_root, data_root)
