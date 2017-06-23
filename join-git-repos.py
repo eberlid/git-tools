@@ -538,7 +538,8 @@ already_have_submodules = False
 # Export the main repository.
 main_spec = getrepospec(args.main)
 
-os.mkdir('join-git-data')
+if not os._exists('join-git-data'):
+    os.mkdir('join-git-data')
 data_root = os.getcwd() + '/join-git-data'
 
 print 'Exporting the main repository (' + main_spec['name'] + ')...'
