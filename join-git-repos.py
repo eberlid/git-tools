@@ -449,15 +449,21 @@ def copy_notes(repo_spec, import_marks, output_repo, data_root):
     marks = read_marks(data_root + '/export-' + repo_spec['name'] + '.txt')
     mark_offset = int(read_mark_offset(data_root + '/mark-offset-' + repo_spec['name'] + '.txt'))
 
+    # notes in the formet <svn-revision> 'SP' <data>
+    notes_data = filter(None, subprocess.check_output('git notes list | sed -r \'s/^(.*)\\s(.*)$/\\1/g\' | git cat-file --batch=\'%(objectname) %(rest)\' | sed \'s/\\s$//g\'', cwd=repo_spec['path'], shell=True).split('\n'))
     # <notes object> 'SP' <annotated object>
-    notes = subprocess.check_output(['git', 'notes', 'list'], cwd=repo_spec['path']).split('\n')
+    notes = filter(None, subprocess.check_output(['git', 'notes', 'list'], cwd=repo_spec['path']).split('\n'))
+
+    assert len(notes)*2 == len(notes_data)   
+
     mark_notes = defaultdict()
     print('\n\tRemapping commit marks with offset ' + str(mark_offset) + '...')
-    for k in xrange(0, len(notes) - 1):
+    for k in xrange(0, len(notes)):
         notes_ish = parse_notes_object(notes[k])
         commit_ish = parse_annotated_object(notes[k])
-
-        note = subprocess.check_output(['git', 'cat-file', '-p', notes_ish], cwd=repo_spec['path'])
+        notes_data_ish = notes_data[2 * k]
+        assert notes_data_ish == notes_ish
+        note = notes_data[(2 * k) + 1]        
 
         if commit_ish not in marks.keys():
             print('No mark found for commit ' + commit_ish + ' in repo ' + repo_spec['name'])
@@ -466,13 +472,12 @@ def copy_notes(repo_spec, import_marks, output_repo, data_root):
         # Increase secondary mark with offset
         mark_nbr = int(mark[1:])
         mark_nbr += mark_offset
-
         mark_notes[':' + str(mark_nbr)] = note
-
+    
     print('\n\tImporting notes of ' + repo_spec['name'] + ' into ' + output_repo + '...')
     for k2, v2 in mark_notes.iteritems():
         import_commit_ish = parse_import_commit_ish(import_marks, k2)
-        subprocess.check_output(['git', 'notes', 'add', '-m', v2, import_commit_ish], cwd=output_repo)
+        subprocess.check_output(['git', 'notes', 'add', '-f', '-m', v2, import_commit_ish], cwd=output_repo)
 
 def parse_import_commit_ish(import_marks, mark):
     return import_marks[mark];
@@ -541,7 +546,7 @@ main_spec = getrepospec(args.main)
 if not os.path.exists('join-git-data'):
     os.mkdir('join-git-data')
 data_root = os.getcwd() + '/join-git-data'
-
+'''
 print 'Exporting the main repository (' + main_spec['name'] + ')...'
 main_commands = exportrepo(main_spec['path'], data_root, main_spec['name'])
 if move_to_subdirs:
@@ -566,14 +571,16 @@ for secondary in args.secondary:
     main_commands = mergerpos(main_commands, secondary_commands, main_spec, secondary_spec, data_root)
 
 # Create the new repository and import the stiched histories.
+'''
 out_root = args.output
+'''
 if os.path.isdir(out_root):
     cleandir(out_root)
 else:
     os.makedirs(out_root)
 print '\nImporting result to ' + os.path.abspath(out_root) + '...'
 importtorepo(out_root, data_root, main_commands, main_spec['branch'])
-
+'''
 print '\nMigrating notes...'
 import_marks = read_marks(data_root + '/import-marks.txt')
 swapped_import_marks = defaultdict()
