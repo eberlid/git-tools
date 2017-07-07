@@ -546,7 +546,7 @@ main_spec = getrepospec(args.main)
 if not os.path.exists('join-git-data'):
     os.mkdir('join-git-data')
 data_root = os.getcwd() + '/join-git-data'
-'''
+
 print 'Exporting the main repository (' + main_spec['name'] + ')...'
 main_commands = exportrepo(main_spec['path'], data_root, main_spec['name'])
 if move_to_subdirs:
@@ -571,16 +571,16 @@ for secondary in args.secondary:
     main_commands = mergerpos(main_commands, secondary_commands, main_spec, secondary_spec, data_root)
 
 # Create the new repository and import the stiched histories.
-'''
+
 out_root = args.output
-'''
+
 if os.path.isdir(out_root):
     cleandir(out_root)
 else:
     os.makedirs(out_root)
 print '\nImporting result to ' + os.path.abspath(out_root) + '...'
 importtorepo(out_root, data_root, main_commands, main_spec['branch'])
-'''
+
 print '\nMigrating notes...'
 import_marks = read_marks(data_root + '/import-marks.txt')
 swapped_import_marks = defaultdict()
